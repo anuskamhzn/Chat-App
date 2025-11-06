@@ -6,6 +6,9 @@ import Homepage from './Pages/Homepage';
 import Login from './Pages/Auth/Login';
 import Register from './Pages/Auth/Registration';
 import Chat from './Pages/Chat/Chat';
+import PrivateRoute from './components/Routes/PrivateRoute';
+import Profile from './Pages/User/Profile';
+import EditProfile from './Pages/User/EditProfile';
 
 const App = () => {
   return (
@@ -15,7 +18,12 @@ const App = () => {
         <Route path="/" element={<Homepage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/chat" element={<Chat />} />
+        {/* Protected routes */}
+        <Route element={<PrivateRoute />}>
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/edit-profile" element={<EditProfile />} />
+        </Route>
 
       </Routes>
     </div>

@@ -1,6 +1,4 @@
-import  { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import User from '../models/User'; // Note: Ensure this import path is correct (e.g., '../models/User')
 
 // Middleware to check if the user is authenticated
 export const authenticate = (req, res, next) => {

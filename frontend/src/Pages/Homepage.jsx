@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/auth';
-import { FaFacebookF, FaGoogle, FaTwitter, FaLinkedinIn, FaGithub } from "react-icons/fa";
+import { FaFacebookF, FaGoogle, FaTwitter, FaLinkedinIn, FaGithub, FaBars, FaTimes } from "react-icons/fa";
 
 const Homepage = () => {
     const navigate = useNavigate();
     const [isLoggedIn, setIsLoggedIn] = useState(false);
     const [auth, setAuth] = useAuth();
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     // Check if token exists in localStorage
     useEffect(() => {
@@ -37,6 +38,10 @@ const Homepage = () => {
         navigate('/chat');
     };
 
+    const toggleMobileMenu = () => {
+        setIsMobileMenuOpen(!isMobileMenuOpen);
+    };
+
     const socialLinks = [
         { icon: FaFacebookF, href: "#" },
         { icon: FaTwitter, href: "#" },
@@ -55,6 +60,16 @@ const Homepage = () => {
         { text: "Terms", href: "#" },
     ];
 
+    const navLinks = [
+        { text: "Home", href: "/" },
+        { text: "About", href: "#about" },
+        { text: "Feature", href: "#features" },
+    ];
+
+    if (isLoggedIn && auth?.user) {
+        navLinks.push({ text: "Chat", href: "/chat", onClick: handleDashboardClick });
+    }
+
     return (
         <div className="font-sans">
             {/* Navbar */}
@@ -62,36 +77,39 @@ const Homepage = () => {
                 <NavLink to="/" className="text-2xl font-bold text-blue-600">
                     Chatly
                 </NavLink>
-                <ul className="flex space-x-6">
-                    <li>
-                        <NavLink to="/" className="text-gray-600 hover:text-blue-600 transition-colors">
-                            Home
-                        </NavLink>
-                    </li>
-                    <li>
-                        <a href="#about" className="text-gray-600 hover:text-blue-600 transition-colors">
-                            About
-                        </a>
-                    </li>
-                    <li>
-                        <a href="#features" className="text-gray-600 hover:text-blue-600 transition-colors">
-                            Feature
-                        </a>
-                    </li>
-                    {isLoggedIn && auth?.user && (
-                        <li>
-                            <button
-                                onClick={handleDashboardClick}
-                                className="text-gray-600 hover:text-blue-600 transition-colors"
-                            >
-                                Chat
-                            </button>
-                        </li>
-                    )}
+
+                {/* Desktop Links */}
+                <ul className="hidden md:flex space-x-6">
+                    {navLinks.map((link, index) => (
+                        link.onClick ? (
+                            <li key={index}>
+                                <button
+                                    onClick={link.onClick}
+                                    className="text-gray-600 hover:text-blue-600 transition-colors"
+                                >
+                                    {link.text}
+                                </button>
+                            </li>
+                        ) : (
+                            <li key={index}>
+                                {link.href.startsWith('#') ? (
+                                    <a href={link.href} className="text-gray-600 hover:text-blue-600 transition-colors">
+                                        {link.text}
+                                    </a>
+                                ) : (
+                                    <NavLink to={link.href} className="text-gray-600 hover:text-blue-600 transition-colors">
+                                        {link.text}
+                                    </NavLink>
+                                )}
+                            </li>
+                        )
+                    ))}
                 </ul>
-                <div>
+
+                {/* Desktop Buttons */}
+                <div className="hidden md:flex items-center space-x-4">
                     {isLoggedIn ? (
-                        <div className="flex items-center space-x-4">
+                        <>
                             <button
                                 onClick={handleDashboardClick}
                                 className="px-4 py-2 text-blue-600 font-medium hover:text-blue-700 transition-colors"
@@ -104,7 +122,7 @@ const Homepage = () => {
                             >
                                 Sign Out
                             </button>
-                        </div>
+                        </>
                     ) : (
                         <NavLink
                             to="/login"
@@ -114,7 +132,85 @@ const Homepage = () => {
                         </NavLink>
                     )}
                 </div>
+
+                {/* Mobile Hamburger */}
+                <button className="md:hidden text-gray-600 hover:text-blue-600 transition-colors" onClick={toggleMobileMenu}>
+                    {isMobileMenuOpen ? <FaTimes className="w-6 h-6" /> : <FaBars className="w-6 h-6" />}
+                </button>
             </nav>
+
+            {/* Mobile Menu */}
+            {isMobileMenuOpen && (
+                <div className="md:hidden bg-white border-b shadow-sm px-6 py-4">
+                    <ul className="flex flex-col space-y-4">
+                        {navLinks.map((link, index) => (
+                            link.onClick ? (
+                                <li key={index}>
+                                    <button
+                                        onClick={() => {
+                                            link.onClick();
+                                            toggleMobileMenu();
+                                        }}
+                                        className="text-gray-600 hover:text-blue-600 transition-colors w-full text-left"
+                                    >
+                                        {link.text}
+                                    </button>
+                                </li>
+                            ) : (
+                                <li key={index}>
+                                    {link.href.startsWith('#') ? (
+                                        <a
+                                            href={link.href}
+                                            onClick={toggleMobileMenu}
+                                            className="text-gray-600 hover:text-blue-600 transition-colors block"
+                                        >
+                                            {link.text}
+                                        </a>
+                                    ) : (
+                                        <NavLink
+                                            to={link.href}
+                                            onClick={toggleMobileMenu}
+                                            className="text-gray-600 hover:text-blue-600 transition-colors block"
+                                        >
+                                            {link.text}
+                                        </NavLink>
+                                    )}
+                                </li>
+                            )
+                        ))}
+                        {isLoggedIn ? (
+                            <>
+                                <button
+                                    onClick={() => {
+                                        handleDashboardClick();
+                                        toggleMobileMenu();
+                                    }}
+                                    className="px-4 py-2 text-blue-600 font-medium hover:text-blue-700 transition-colors w-full text-left"
+                                >
+                                    Start Chatting
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        handleSignOutClick();
+                                        toggleMobileMenu();
+                                    }}
+                                    className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors w-full"
+                                >
+                                    Sign Out
+                                </button>
+                            </>
+                        ) : (
+                            <NavLink
+                                to="/login"
+                                onClick={toggleMobileMenu}
+                                className="px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors block"
+                            >
+                                Login
+                            </NavLink>
+                        )}
+                    </ul>
+                </div>
+            )}
 
             {/* Main Content */}
             <main className="container mx-auto px-6 py-16">

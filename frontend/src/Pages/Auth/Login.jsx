@@ -115,9 +115,9 @@ const Login = () => {
               {loading ? 'Logging in...' : 'Login'}
             </button>
           </form>
-          <div className="mt-4 text-center">
+          {/* <div className="mt-4 text-center">
             <NavLink to='/forget-pass'><p className="text-sm text-gray-600">Forgot Password?</p></NavLink>
-          </div>
+          </div> */}
 
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
