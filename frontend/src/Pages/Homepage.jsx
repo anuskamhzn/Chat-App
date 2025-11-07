@@ -238,7 +238,7 @@ const Homepage = () => {
                     {/* Right Content - Chat Image */}
                     <div className="flex-1">
                         <img
-                            src="https://a.storyblok.com/f/231922/1726x1041/f2a68d4de1/real-time-chat-cover-image.jpg/m/0x0"
+                            src="https://unblast.com/wp-content/uploads/2020/05/Group-Chat-Illustration.jpg"
                             alt="Real-time chat interface"
                             className="w-full rounded-xl shadow-lg"
                         />

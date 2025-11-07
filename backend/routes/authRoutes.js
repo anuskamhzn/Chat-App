@@ -10,8 +10,7 @@ router.post('/register', authController.register);
 // POST /api/auth/login - Login user and return JWT token
 router.post('/login', authController.login);
 
-router.get('/user-info',authenticate,authController.userInfo); // Protect user info route
-router.get('/user-info/:userId',authController.userInfoById); 
+router.get('/user-info',authenticate,authController.userInfo); // Protect user info route 
 
 router.patch('/update',authenticate,authController.updateProfileController);
 router.delete('/delete',authenticate,authController.deleteProfileController);

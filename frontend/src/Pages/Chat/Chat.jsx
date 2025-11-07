@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FaUser, FaComments, FaUserCircle, FaCaretDown, FaCaretUp, FaSignOutAlt,} from 'react-icons/fa';
+import { FaUser, FaComments, FaUserCircle, FaCaretDown, FaCaretUp, FaSignOutAlt } from 'react-icons/fa';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/auth';
+import io from 'socket.io-client'; // Add this import
 
 const Chat = () => {
   const formatTime = (date) =>
@@ -11,22 +12,19 @@ const Chat = () => {
       hour12: true,
     });
 
-  const [messages, setMessages] = useState([
-    {
-      id: 1,
-      text: 'Hello! Welcome to the chat room.',
-      sender: 'System',
-      timestamp: formatTime(new Date()),
-      color: 'bg-gray-500',
-    },
-  ]);
+  const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
-  const [users, setUsers] = useState(1);
-  const [chatCount, setChatCount] = useState(1);
+  const [users, setUsers] = useState(0); // Start at 0, update from socket
+  const [chatCount, setChatCount] = useState(0); // Start at 0, update from socket
   const messagesEndRef = useRef(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const [auth, setAuth] = useAuth();
+
+  // Socket connection
+  const socketRef = useRef(null);
+
+  const socket = socketRef.current;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,13 +34,15 @@ const Chat = () => {
     scrollToBottom();
   }, [messages]);
 
-  const getInitials = (name) =>
-    name
+  const getInitials = (name) => {
+    if (!name || name === 'Unknown' || name === 'Deleted User') return 'DU'; // Fallback initials
+    return name
       .split(' ')
       .map((n) => n[0])
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
 
   const getSenderColor = (sender) => {
     const colors = {
@@ -53,18 +53,129 @@ const Chat = () => {
     return colors[sender] || 'bg-purple-500';
   };
 
-  const handleSendMessage = () => {
-    if (inputText.trim()) {
-      const newMessage = {
-        id: messages.length + 1,
-        text: inputText,
-        sender: 'You',
-        timestamp: formatTime(new Date()),
-        color: 'bg-green-500',
+  // Socket connection and event listeners
+  useEffect(() => {
+    const token = auth?.token || localStorage.getItem('auth')?.token; // Get token from context or localStorage
+    if (!token) {
+      console.error('No auth token found. Please log in.');
+      return;
+    }
+
+    // Connect to Socket.IO server
+    socketRef.current = io(`${process.env.REACT_APP_API}`, {
+      auth: { token }, // Pass JWT for authentication
+    });
+
+    const socket = socketRef.current;
+
+    socket.on('connect', () => {
+      console.log('Socket connected:', socket.id);
+    });
+
+    socket.on('connect_error', (err) => {
+      console.error('Socket connection error:', err.message);
+    });
+
+    // Load chat history on connect
+    socket.on('chatHistory', (history) => {
+      const formattedHistory = history.map((msg) => ({
+        id: msg._id || Date.now() + Math.random(),
+        text: msg.content,
+        sender: msg.sender?.name || 'Deleted User',
+        senderId: msg.sender?._id || null,  // NEW: Store ID for real-time updates
+        timestamp: formatTime(new Date(msg.timestamp || msg.createdAt)),
+        color: msg.sender?._id === auth.user?._id ? 'bg-green-500' : 'bg-purple-500',
+      }));
+      setMessages(formattedHistory);
+      setChatCount(history.length);
+    });
+
+    // New message received
+    socket.on('newMessage', (msg) => {
+      const newMsg = {
+        id: msg._id || Date.now() + Math.random(),
+        text: msg.content,
+        sender: msg.sender?.name || 'Deleted User',
+        senderId: msg.sender?._id || null,  // NEW: Store ID
+        timestamp: formatTime(new Date(msg.timestamp || msg.createdAt)),
+        color: msg.sender?._id === auth.user?._id ? 'bg-green-500' : 'bg-purple-500',
       };
-      setMessages((prev) => [...prev, newMessage]);
-      setInputText('');
+      setMessages((prev) => [...prev, newMsg]);
       setChatCount((prev) => prev + 1);
+    });
+
+    // NEW: Listen for user join - add system message
+    socket.on('userJoined', ({ username }) => {
+      const safeUsername = username || 'Unknown User';
+      const systemMsg = {
+        id: `join-${Date.now()}`,
+        text: `${safeUsername} joined the chat.`,
+        sender: 'System',
+        timestamp: formatTime(new Date()),
+        color: 'bg-gray-500',
+      };
+      setMessages((prev) => [...prev, systemMsg]);
+    });
+
+    // NEW: Listen for user leave - add system message
+    socket.on('userLeft', ({ username }) => {
+      const safeUsername = username || 'Unknown User';
+      const systemMsg = {
+        id: `leave-${Date.now()}`,
+        text: `${safeUsername} left the chat.`,
+        sender: 'System',
+        timestamp: formatTime(new Date()),
+        color: 'bg-gray-500',
+      };
+      setMessages((prev) => [...prev, systemMsg]);
+    });
+
+    // NEW: Listen for user deletion - update local messages in real-time
+    socket.on('userDeleted', ({ userId }) => {
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.senderId === userId
+            ? {
+              ...message,
+              sender: 'Deleted User',
+              senderId: null,  // Orphan locally
+              color: 'bg-purple-500',  // Treat as "other" user
+            }
+            : message
+        )
+      );
+      console.log(`Updated messages for deleted user: ${userId}`);
+    });
+
+    // Update user count
+    socket.on('userCountUpdate', (count) => {
+      setUsers(count);
+    });
+
+    // Update chat count (for consistency, though newMessage also updates)
+    socket.on('chatCountUpdate', (count) => {
+      setChatCount(count);
+    });
+
+    // Error handling
+    socket.on('messageError', (err) => {
+      console.error('Message error:', err.message);
+      // Optionally add error message to UI
+    });
+
+    // Cleanup on unmount
+    return () => {
+      if (socket) {
+        socket.disconnect();
+        console.log('Socket disconnected');
+      }
+    };
+  }, [auth?.token, auth?.user?._id]); // Reconnect if auth changes
+
+  const handleSendMessage = () => {
+    if (inputText.trim() && socketRef.current) {
+      socketRef.current.emit('sendMessage', { content: inputText.trim() });
+      setInputText('');
     }
   };
 
@@ -87,6 +198,10 @@ const Chat = () => {
     });
     localStorage.removeItem('auth');
     setDropdownOpen(false);
+    // Disconnect socket on logout
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
   };
 
   // Close dropdown when clicking outside
@@ -177,52 +292,58 @@ const Chat = () => {
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gray-100">
         {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${
-              message.sender === 'You' ? 'justify-end' : 'justify-start'
-            } animate-fadeIn`}
-          >
+          message.sender === 'System' ? (
+            // Special rendering for system messages (centered, no avatar)
+            <div key={message.id} className="flex justify-center animate-fadeIn">
+              <div className="px-4 py-2 bg-gray-300 text-gray-700 rounded-full text-xs sm:text-sm shadow-sm max-w-md">
+                <span>{message.text}</span>
+                <span className="ml-2 opacity-70">({message.timestamp})</span>
+              </div>
+            </div>
+          ) : (
+            // Normal user message
             <div
-              className={`flex items-end gap-2 ${
-                message.sender === 'You' ? 'flex-row-reverse' : ''
-              } max-w-[85%] sm:max-w-md`}
+              key={message.id}
+              className={`flex ${message.sender === userName ? 'justify-end' : 'justify-start'
+                } animate-fadeIn`}
             >
-              {/* Avatar */}
               <div
-                className={`flex-shrink-0 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-semibold shadow-md ${
-                  message.sender === 'You'
+                className={`flex items-end gap-2 ${message.sender === userName ? 'flex-row-reverse' : ''
+                  } max-w-[85%] sm:max-w-md`}
+              >
+                {/* Avatar */}
+                <div
+                  className={`flex-shrink-0 rounded-full flex items-center justify-center text-white text-xs sm:text-sm font-semibold shadow-md ${message.sender === userName
                     ? 'w-7 h-7 sm:w-10 sm:h-10'
                     : 'w-8 h-8 sm:w-10 sm:h-10'
-                } ${getSenderColor(message.sender)}`}
-              >
-                {getInitials(message.sender)}
-              </div>
+                    } ${message.color || getSenderColor(message.sender)}`}
+                >
+                  {getInitials(message.sender)}
+                </div>
 
-              {/* Message Bubble */}
-              <div
-                className={`px-3 py-2 sm:px-4 sm:py-3 rounded-2xl shadow-md text-sm sm:text-base break-words ${
-                  message.sender === 'You'
+                {/* Message Bubble */}
+                <div
+                  className={`px-3 py-2 sm:px-4 sm:py-3 rounded-2xl shadow-md text-sm sm:text-base break-words ${message.sender === userName
                     ? 'bg-indigo-500 text-white rounded-br-none'
                     : 'bg-white text-gray-900 border border-gray-200 rounded-bl-none'
-                }`}
-              >
-                <p>{message.text}</p>
-                <div
-                  className={`flex items-center justify-between mt-1 text-xs opacity-70 ${
-                    message.sender === 'You' ? 'flex-row-reverse' : ''
-                  }`}
+                    }`}
                 >
-                  {message.sender !== 'You' && (
-                    <span className="font-medium mr-2 truncate max-w-[80px] sm:max-w-none">
-                      {message.sender}
-                    </span>
-                  )}
-                  <span>{message.timestamp}</span>
+                  <p>{message.text}</p>
+                  <div
+                    className={`flex items-center justify-between mt-1 text-xs opacity-70 ${message.sender === userName ? 'flex-row-reverse' : ''
+                      }`}
+                  >
+                    {message.sender !== userName && (
+                      <span className="font-medium mr-2 truncate max-w-[80px] sm:max-w-none">
+                        {message.sender}
+                      </span>
+                    )}
+                    <span>{message.timestamp}</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )
         ))}
         <div ref={messagesEndRef} />
       </div>
@@ -241,7 +362,7 @@ const Chat = () => {
           />
           <button
             onClick={handleSendMessage}
-            disabled={!inputText.trim()}
+            disabled={!inputText.trim() || !socketRef.current}
             className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white p-2 sm:px-6 sm:py-3 rounded-xl transition-colors font-medium flex items-center justify-center whitespace-nowrap"
           >
             <svg

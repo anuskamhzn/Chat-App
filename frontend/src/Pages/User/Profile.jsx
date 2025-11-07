@@ -138,17 +138,6 @@ const Profile = () => {
           </NavLink>
 
           <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto">
-            <div className="flex items-center space-x-3 sm:space-x-4 text-xs sm:text-sm">
-              <span className="flex items-center">
-                <FaUser className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                <span className="font-semibold">1</span>
-              </span>
-              <span className="flex items-center">
-                <FaComments className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                <span className="font-semibold mr-2">1</span>
-              </span>
-            </div>
-
             <div className="relative" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(prev => !prev)}
